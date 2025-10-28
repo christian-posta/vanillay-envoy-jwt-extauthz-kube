@@ -31,8 +31,8 @@ data:
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
                   path: /tmp/access.log
-              http_filters:              
-              # JWT Authentication filter (before ext_authz)
+              # JWT Authentication filter first (before ext_authz as requested)
+              http_filters:
               - name: envoy.filters.http.jwt_authn
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
@@ -48,11 +48,14 @@ data:
                         cache_duration:
                           seconds: 300
                       forward: true
+                      # Add payload_in_metadata to expose the JWT claims in dynamic metadata
+                      payload_in_metadata: "jwt_payload"
                   rules:
                   - match:
                       prefix: "/"
                     requires:
                       provider_name: keycloak
+              
               # External Authorization filter (after JWT filter)
               - name: envoy.filters.http.ext_authz
                 typed_config:
@@ -69,12 +72,17 @@ data:
                     allow_partial_message: true
                   failure_mode_allow: false
                   # Forward all headers to external auth service, including the Authorization header with JWT
-                  include_peer_certificate: true                      
+                  include_peer_certificate: true
+                  # This makes JWT claims available 
+                  metadata_context_namespaces:
+                    - envoy.filters.http.jwt_authn                  
               
               # Router filter must be the last filter
               - name: envoy.filters.http.router
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                  
+                
               route_config:
                 name: local_route
                 virtual_hosts:
